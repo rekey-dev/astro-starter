@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { SignUp } from '@rekey.dev/react';
+import AuthCard from '../components/AuthCard.astro';
 
 if (Astro.locals.session) return Astro.redirect('/dashboard');
 
@@ -9,6 +9,6 @@ const error = Astro.url.searchParams.get('error') ?? undefined;
 
 <Layout title="Create an account">
   <div class="mx-auto max-w-sm py-10">
-    <SignUp actionUrl="/api/sign-up" signInUrl="/sign-in" error={error} />
+    <AuthCard mode="sign-up" action="/api/sign-up" error={error} />
   </div>
 </Layout>

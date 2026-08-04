@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { SignIn } from '@rekey.dev/react';
+import AuthCard from '../components/AuthCard.astro';
 
 if (Astro.locals.session) return Astro.redirect('/dashboard');
 
@@ -9,18 +9,10 @@ const next = params.get('next') ?? '/dashboard';
 const error = params.get('mfa')
   ? 'This account uses two-factor authentication. Enter your code to continue.'
   : (params.get('error') ?? undefined);
-
-// The component renders a plain form, so where to go afterwards rides along in
-// the action URL rather than in a hidden field.
-const actionUrl = `/api/sign-in?next=${encodeURIComponent(next)}`;
 ---
 
 <Layout title="Sign in">
   <div class="mx-auto max-w-sm py-10">
-    <!--
-      No client directive on purpose. With `actionUrl` this is a plain form, so
-      the page ships zero JavaScript and still works without it.
-    -->
-    <SignIn actionUrl={actionUrl} signUpUrl="/sign-up" error={error} />
+    <AuthCard mode="sign-in" action={`/api/sign-in?next=${encodeURIComponent(next)}`} error={error} />
   </div>
 </Layout>

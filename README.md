@@ -10,7 +10,7 @@ whole point, so the starter does not fight it.
 
 - Astro 7 (server output, Node adapter)
 - Tailwind CSS 4
-- `@rekey.dev/node`, plus `@rekey.dev/react` for the sign-in and sign-up forms
+- `@rekey.dev/node`, and nothing else. No React, no islands.
 
 ## Getting it running
 
@@ -51,6 +51,7 @@ empty until you create a plan.
 | `src/lib/session.ts` | The whole session adapter: two cookies, a read that refreshes, a write. |
 | `src/middleware.ts` | Reads the session once per request onto `Astro.locals`. |
 | `src/pages/api/sign-in.ts` | Plain form post. Also sign-up, sign-out, checkout, cancel, use-credit. |
+| `src/components/AuthCard.astro` | The sign-in and sign-up form. Plain markup. |
 | `src/pages/pricing.astro` | Plans read from the API, rendered without an island. |
 | `src/pages/dashboard.astro` | A page that guards itself and reads entitlements server-side. |
 | `src/pages/account.astro` | Plan status, cancel, credit balance. |
@@ -104,23 +105,24 @@ from `astro:env/server`, not read through `import.meta.env`. Vite inlines
 wrong key with nothing in the source to show it. `astro:env` resolves at
 runtime, and a missing variable fails at boot naming the variable.
 
-## Forms
+## Forms, and why there is no React here
 
-`<SignIn>` and `<SignUp>` come from `@rekey.dev/react` and are rendered **with
-no client directive**. Given `actionUrl` they emit a plain form, so Astro renders
-them to HTML and no React reaches the browser:
+`@rekey.dev/react` ships `<SignIn>` and `<SignUp>`, and given `actionUrl` they
+render a plain form, which looks like a perfect fit for Astro. It is not, and
+the reason is worth knowing before you reach for them.
 
-```astro
-<SignIn actionUrl="/api/sign-in" signUpUrl="/sign-up" error={error} />
-```
+Those components style themselves by injecting a `<style>` block from a client
+effect. Rendering one server-only, which is what Astro does without a client
+directive, gives you correct markup with no styling at all. Adding `client:load`
+fixes the appearance by shipping React to a page that otherwise needs none.
 
-The endpoint they post to is nine lines of real work: call `signIn`, set the
-cookies, redirect. If you would rather write your own markup, delete the island
-and keep the endpoint.
+So `src/components/AuthCard.astro` is the form, in about forty lines of markup
+you can restyle by editing it. Pricing is a plain `.astro` grid for a related
+reason: `<PricingTable>` requires a `checkoutAction`, which is a Next server
+action, and Astro has form posts.
 
-Pricing is a plain `.astro` grid rather than `<PricingTable>`, because the React
-table wants a server action and Astro has form posts. Same result, less
-machinery.
+The endpoints are the part that matters and they are unchanged: call `signIn`,
+set the cookies, redirect.
 
 ## Billing
 

@@ -1,0 +1,87 @@
+---
+/**
+ * The sign-in and sign-up form.
+ *
+ * Written here rather than using `<SignIn>` from `@rekey.dev/react` on purpose.
+ * That component styles itself by injecting a <style> block from a client
+ * effect, so rendering it server-only, which is what Astro does without a
+ * client directive, produces correct but completely unstyled markup. Adding
+ * `client:load` fixes the styling by shipping React to a page that does not
+ * otherwise need it.
+ *
+ * Forty lines of markup is the better trade here. It is a form.
+ */
+interface Props {
+  mode: 'sign-in' | 'sign-up';
+  action: string;
+  error?: string | undefined;
+}
+
+const { mode, action, error } = Astro.props;
+const signingIn = mode === 'sign-in';
+---
+
+<div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+  <h1 class="text-lg font-medium tracking-tight">
+    {signingIn ? 'Sign in' : 'Create your account'}
+  </h1>
+
+  {
+    error && (
+      <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900 dark:bg-red-950/40 dark:text-red-200">
+        {error}
+      </p>
+    )
+  }
+
+  <form method="POST" action={action} class="mt-5 space-y-4">
+    <div>
+      <label for="email" class="block text-sm text-neutral-600 dark:text-neutral-400">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        required
+        autocomplete="email"
+        placeholder="you@example.com"
+        class="mt-1 w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-100"
+      />
+    </div>
+
+    <div>
+      <label for="password" class="block text-sm text-neutral-600 dark:text-neutral-400">
+        Password
+      </label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        required
+        minlength="8"
+        autocomplete={signingIn ? 'current-password' : 'new-password'}
+        class="mt-1 w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-100"
+      />
+    </div>
+
+    <button
+      type="submit"
+      class="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm text-white transition hover:bg-neutral-700 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
+    >
+      {signingIn ? 'Sign in' : 'Create account'}
+    </button>
+  </form>
+
+  <p class="mt-5 text-center text-sm text-neutral-600 dark:text-neutral-400">
+    {
+      signingIn ? (
+        <>
+          No account yet? <a href="/sign-up" class="underline">Create one</a>
+        </>
+      ) : (
+        <>
+          Already have one? <a href="/sign-in" class="underline">Sign in</a>
+        </>
+      )
+    }
+  </p>
+</div>
