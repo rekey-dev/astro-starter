@@ -1,0 +1,86 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { rekey } from '../lib/rekey';
+import { cancelsAtPeriodEnd } from '@rekey.dev/node';
+
+/**
+ * The page guards itself. Three lines, and the answer to "does this route need
+ * a session" lives in the route rather than in a matcher somewhere else.
+ */
+const session = Astro.locals.session;
+if (!session) return Astro.redirect('/sign-in?next=/dashboard');
+
+// Entitlements are resolved on the server. A client-side check is a hint for
+// your UI; it is not a gate.
+const [subscription, entitlements] = await Promise.all([
+  rekey.billing.getSubscription(session.accessToken).catch(() => null),
+  rekey.billing.getEntitlements(session.accessToken).catch(() => null),
+]);
+
+const endingEarly = subscription ? cancelsAtPeriodEnd(subscription) : false;
+const features = Object.entries(entitlements?.features ?? {});
+const paid = Astro.url.searchParams.get('checkout') === 'done';
+---
+
+<Layout title="Dashboard">
+  <header>
+    <h1 class="text-2xl font-medium tracking-tight">Dashboard</h1>
+    <p class="mt-1 text-neutral-600 dark:text-neutral-400">{session.user.email}</p>
+  </header>
+
+  {
+    paid && (
+      <p class="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200">
+        Payment received. The subscription activates as soon as the provider
+        confirms it, which is usually seconds.
+      </p>
+    )
+  }
+
+  <section class="mt-8 rounded-xl border border-neutral-200 p-6 dark:border-neutral-800">
+    <h2 class="text-sm font-medium uppercase tracking-wider text-neutral-500">Subscription</h2>
+    {
+      subscription ? (
+        <div class="mt-3 space-y-1">
+          <p class="text-lg">{subscription.status}</p>
+          {subscription.currentPeriodEnd && (
+            <p class="text-sm text-neutral-600 dark:text-neutral-400">
+              {endingEarly ? 'Access until' : 'Renews on'}{' '}
+              {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div class="mt-3">
+          <p class="text-neutral-600 dark:text-neutral-400">No active plan.</p>
+          <a href="/pricing" class="mt-2 inline-block text-sm underline">
+            See plans
+          </a>
+        </div>
+      )
+    }
+  </section>
+
+  <section class="mt-6 rounded-xl border border-neutral-200 p-6 dark:border-neutral-800">
+    <h2 class="text-sm font-medium uppercase tracking-wider text-neutral-500">
+      What this account can use
+    </h2>
+    {
+      features.length > 0 ? (
+        <ul class="mt-3 space-y-1 text-sm">
+          {features.map(([key, value]) => (
+            <li class="flex justify-between border-b border-neutral-100 py-1.5 last:border-0 dark:border-neutral-900">
+              <span class="font-mono text-xs">{key}</span>
+              <span class="text-neutral-600 dark:text-neutral-400">{String(value)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="mt-3 text-neutral-600 dark:text-neutral-400">
+          Nothing granted yet. Entitlements come from the plan, so add some to a
+          plan in the panel and they appear here.
+        </p>
+      )
+    }
+  </section>
+</Layout>

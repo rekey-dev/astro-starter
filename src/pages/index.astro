@@ -1,0 +1,92 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const session = Astro.locals.session;
+
+const map = [
+  {
+    file: 'src/lib/session.ts',
+    what: 'The whole Astro adapter. Two cookies, a read that refreshes, a write.',
+  },
+  {
+    file: 'src/middleware.ts',
+    what: 'Reads the session once per request onto Astro.locals. Does not guard routes.',
+  },
+  {
+    file: 'src/pages/api/sign-in.ts',
+    what: 'Plain form post. Works with JavaScript switched off.',
+  },
+  {
+    file: 'src/pages/api/checkout.ts',
+    what: 'Turns a plan slug into a hosted checkout URL and redirects there.',
+  },
+  {
+    file: 'src/pages/api/use-credit.ts',
+    what: 'A metered feature: check, do the work, then deduct.',
+  },
+  {
+    file: 'src/pages/dashboard.astro',
+    what: 'A page that guards itself and reads entitlements on the server.',
+  },
+];
+---
+
+<Layout>
+  <section class="max-w-2xl py-8">
+    <p class="text-xs font-medium uppercase tracking-widest text-neutral-500">Rekey starter</p>
+    <h1 class="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
+      Astro with auth and billing already wired up.
+    </h1>
+    <p class="mt-4 text-neutral-600 dark:text-neutral-400">
+      Sign-up, sign-in, sessions, plans, checkout, entitlements and credits.
+      The pages ship no JavaScript: the forms are forms, and the session is read
+      on the server.
+    </p>
+
+    <div class="mt-8 flex flex-wrap gap-3">
+      {
+        session ? (
+          <a
+            href="/dashboard"
+            class="rounded-md bg-neutral-900 px-4 py-2 text-sm text-white transition hover:bg-neutral-700 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
+          >
+            Go to dashboard
+          </a>
+        ) : (
+          <a
+            href="/sign-up"
+            class="rounded-md bg-neutral-900 px-4 py-2 text-sm text-white transition hover:bg-neutral-700 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
+          >
+            Create an account
+          </a>
+        )
+      }
+      <a
+        href="/pricing"
+        class="rounded-md border border-neutral-300 px-4 py-2 text-sm transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+      >
+        See pricing
+      </a>
+    </div>
+  </section>
+
+  <section class="mt-10">
+    <h2 class="text-sm font-medium uppercase tracking-wider text-neutral-500">
+      Where everything lives
+    </h2>
+    <dl
+      class="mt-4 grid gap-px overflow-hidden rounded-xl border border-neutral-200 bg-neutral-200 sm:grid-cols-2 dark:border-neutral-800 dark:bg-neutral-800"
+    >
+      {
+        map.map((row) => (
+          <div class="bg-neutral-50 p-5 dark:bg-neutral-950">
+            <dt class="font-mono text-xs">{row.file}</dt>
+            <dd class="mt-1.5 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+              {row.what}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+</Layout>

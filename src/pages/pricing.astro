@@ -1,0 +1,108 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { rekey } from '../lib/rekey';
+
+const session = Astro.locals.session;
+
+const plans = await rekey.billing
+  .getPlans({ limit: 20 })
+  .then((r) => r.items.filter((p) => p.active))
+  .catch(() => []);
+
+// The subscription carries a planId, so match it against the plans already
+// fetched to know which card is the one they are on.
+const sub = session
+  ? await rekey.billing.getSubscription(session.accessToken).catch(() => null)
+  : null;
+const currentPlanId = sub?.status === 'ACTIVE' ? sub.planId : null;
+
+const params = Astro.url.searchParams;
+const canceled = params.get('checkout') === 'canceled';
+const error = params.get('error');
+
+// `amount` is in the smallest currency unit, so paise and cents both work
+// without a special case.
+const money = (plan: (typeof plans)[number]) =>
+  new Intl.NumberFormat('en', {
+    style: 'currency',
+    currency: plan.currency,
+    maximumFractionDigits: plan.amount % 100 === 0 ? 0 : 2,
+  }).format(plan.amount / 100);
+---
+
+<Layout title="Pricing">
+  <div class="mb-8 max-w-xl">
+    <h1 class="text-2xl font-medium tracking-tight">Pricing</h1>
+    <p class="mt-2 text-neutral-600 dark:text-neutral-400">
+      Read live from your Rekey Application. No prices in the source.
+    </p>
+  </div>
+
+  {
+    canceled && (
+      <p class="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+        Checkout was canceled. Nothing was charged.
+      </p>
+    )
+  }
+  {
+    error && (
+      <p class="mb-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+        {error}
+      </p>
+    )
+  }
+
+  {
+    plans.length > 0 ? (
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {plans.map((plan) => (
+          <div
+            class:list={[
+              'flex flex-col rounded-xl border p-6',
+              plan.id === currentPlanId
+                ? 'border-neutral-900 dark:border-neutral-100'
+                : 'border-neutral-200 dark:border-neutral-800',
+            ]}
+          >
+            <h2 class="font-medium">{plan.name}</h2>
+            <p class="mt-2 text-2xl tabular-nums">
+              {money(plan)}
+              {plan.kind === 'SUBSCRIPTION' && (
+                <span class="text-sm text-neutral-500">
+                  {' '}
+                  / {plan.interval.toLowerCase()}
+                </span>
+              )}
+            </p>
+            {plan.creditsAmount ? (
+              <p class="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
+                {plan.creditsAmount.toLocaleString()} credits
+              </p>
+            ) : null}
+
+            <div class="mt-auto pt-6">
+              {plan.id === currentPlanId ? (
+                <p class="text-sm text-neutral-500">Your current plan</p>
+              ) : (
+                <form method="POST" action="/api/checkout">
+                  <input type="hidden" name="planSlug" value={plan.slug} />
+                  <button
+                    type="submit"
+                    class="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm text-white transition hover:bg-neutral-700 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                  >
+                    Choose {plan.name}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p class="rounded-xl border border-dashed border-neutral-300 p-8 text-center text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+        No active plans yet. Create one in the panel under Billing, then reload.
+      </p>
+    )
+  }
+</Layout>
