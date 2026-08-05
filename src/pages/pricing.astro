@@ -4,7 +4,7 @@ import { rekey } from '../lib/rekey';
 
 const session = Astro.locals.session;
 
-const plans = await rekey.billing
+const plans = await rekey().billing
   .getPlans({ limit: 20 })
   .then((r) => r.items.filter((p) => p.active))
   .catch(() => []);
@@ -12,7 +12,7 @@ const plans = await rekey.billing
 // The subscription carries a planId, so match it against the plans already
 // fetched to know which card is the one they are on.
 const sub = session
-  ? await rekey.billing.getSubscription(session.accessToken).catch(() => null)
+  ? await rekey().billing.getSubscription(session.accessToken).catch(() => null)
   : null;
 const currentPlanId = sub?.status === 'ACTIVE' ? sub.planId : null;
 
@@ -22,12 +22,26 @@ const error = params.get('error');
 
 // `amount` is in the smallest currency unit, so paise and cents both work
 // without a special case.
-const money = (plan: (typeof plans)[number]) =>
-  new Intl.NumberFormat('en', {
-    style: 'currency',
-    currency: plan.currency,
-    maximumFractionDigits: plan.amount % 100 === 0 ? 0 : 2,
-  }).format(plan.amount / 100);
+// `amount` is in the currency's minor unit. That is 1/100 for most currencies
+// but not all: JPY and KRW have no minor unit, so dividing by 100 would price a
+// plan at a hundredth of its value. Intl knows the right divisor, so ask it.
+const money = (plan: (typeof plans)[number]) => {
+  try {
+    const digits =
+      new Intl.NumberFormat('en', { style: 'currency', currency: plan.currency })
+        .resolvedOptions().maximumFractionDigits ?? 2;
+    const major = plan.amount / 10 ** digits;
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: plan.currency,
+      maximumFractionDigits: Number.isInteger(major) ? 0 : digits,
+    }).format(major);
+  } catch {
+    // An unknown currency code makes Intl throw, and one bad plan should not
+    // take down the page that sells the other five.
+    return `${plan.amount} ${plan.currency}`;
+  }
+};
 ---
 
 <Layout title="Pricing">

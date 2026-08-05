@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   }
 
   try {
-    const { url } = await rekey.billing.createCheckout(session.accessToken, {
+    const { url } = await rekey().billing.createCheckout(session.accessToken, {
       planSlug,
       successUrl: `${appUrl}/dashboard?checkout=done`,
       cancelUrl: `${appUrl}/pricing?checkout=canceled`,

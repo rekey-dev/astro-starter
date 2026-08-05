@@ -5,7 +5,33 @@ import tailwindcss from '@tailwindcss/vite';
 import node from '@astrojs/node';
 
 // https://astro.build/config
+/**
+ * Astro checks the Origin header on form posts, and it builds the URL it
+ * compares against from the socket: behind a TLS-terminating proxy that is
+ * `http://your-host` while the browser sends `Origin: https://your-host`. They
+ * do not match, and every sign-in, sign-up, checkout and cancel returns 403.
+ *
+ * It only trusts `X-Forwarded-Proto` once you have told it which host is
+ * yours, which is what this does. It is read at BUILD time, because that is
+ * when this file runs.
+ *
+ * Symptom if you skip it: works perfectly on localhost, every form dead the
+ * moment you deploy.
+ */
+const site = process.env.PUBLIC_APP_URL ?? process.env.APP_URL;
+const allowedDomains = [];
+if (site) {
+  try {
+    const { hostname, protocol } = new URL(site);
+    allowedDomains.push({ hostname, protocol: protocol.replace(':', '') });
+  } catch {
+    throw new Error(`PUBLIC_APP_URL is not a URL: ${site}`);
+  }
+}
+
 export default defineConfig({
+  security: { allowedDomains },
+
   // Auth means every page is per-request. Individual pages can still opt back
   // into prerendering with `export const prerender = true`.
   output: 'server',

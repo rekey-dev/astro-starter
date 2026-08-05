@@ -9,7 +9,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const password = String(form.get('password') ?? '');
 
   try {
-    const result = await rekey.auth.signUp({ email, password });
+    const result = await rekey().auth.signUp({ email, password });
     setSession(cookies, request, result);
     return redirect('/dashboard');
   } catch (err) {

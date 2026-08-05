@@ -1,7 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { rekey } from '../lib/rekey';
-import { cancelsAtPeriodEnd } from '@rekey.dev/node';
 
 /**
  * The page guards itself. Three lines, and the answer to "does this route need
@@ -13,11 +12,15 @@ if (!session) return Astro.redirect('/sign-in?next=/dashboard');
 // Entitlements are resolved on the server. A client-side check is a hint for
 // your UI; it is not a gate.
 const [subscription, entitlements] = await Promise.all([
-  rekey.billing.getSubscription(session.accessToken).catch(() => null),
-  rekey.billing.getEntitlements(session.accessToken).catch(() => null),
+  rekey().billing.getSubscription(session.accessToken).catch(() => null),
+  rekey().billing.getEntitlements(session.accessToken).catch(() => null),
 ]);
 
-const endingEarly = subscription ? cancelsAtPeriodEnd(subscription) : false;
+// Two different questions:
+//   cancelAt           -> is this ALREADY scheduled to end?
+//   cancelsAtPeriodEnd -> if I cancel NOW, do they keep the rest of the period,
+//                         or does access stop on click with no refund?
+const alreadyEnding = Boolean(subscription?.cancelAt);
 const features = Object.entries(entitlements?.features ?? {});
 const paid = Astro.url.searchParams.get('checkout') === 'done';
 ---
@@ -45,7 +48,7 @@ const paid = Astro.url.searchParams.get('checkout') === 'done';
           <p class="text-lg">{subscription.status}</p>
           {subscription.currentPeriodEnd && (
             <p class="text-sm text-neutral-600 dark:text-neutral-400">
-              {endingEarly ? 'Access until' : 'Renews on'}{' '}
+              {alreadyEnding ? 'Access until' : 'Renews on'}{' '}
               {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
             </p>
           )}

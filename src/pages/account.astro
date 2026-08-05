@@ -7,11 +7,16 @@ const session = Astro.locals.session;
 if (!session) return Astro.redirect('/sign-in?next=/account');
 
 const [subscription, entitlements] = await Promise.all([
-  rekey.billing.getSubscription(session.accessToken, { includeEnded: true }).catch(() => null),
-  rekey.billing.getEntitlements(session.accessToken).catch(() => null),
+  rekey().billing.getSubscription(session.accessToken, { includeEnded: true }).catch(() => null),
+  rekey().billing.getEntitlements(session.accessToken).catch(() => null),
 ]);
 
-const endingEarly = subscription ? cancelsAtPeriodEnd(subscription) : false;
+// Two different questions:
+//   cancelAt           -> is this ALREADY scheduled to end?
+//   cancelsAtPeriodEnd -> if I cancel NOW, do they keep the rest of the period,
+//                         or does access stop on click with no refund?
+const alreadyEnding = Boolean(subscription?.cancelAt);
+const gracefulCancel = subscription ? cancelsAtPeriodEnd(subscription) : false;
 const live = subscription?.status === 'ACTIVE' || subscription?.status === 'PAST_DUE';
 ---
 
@@ -29,11 +34,11 @@ const live = subscription?.status === 'ACTIVE' || subscription?.status === 'PAST
           <p class="mt-3 text-lg">{subscription.status}</p>
           {subscription.currentPeriodEnd && (
             <p class="text-sm text-neutral-600 dark:text-neutral-400">
-              {endingEarly ? 'Access until' : 'Renews on'}{' '}
+              {alreadyEnding ? 'Access until' : 'Renews on'}{' '}
               {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
             </p>
           )}
-          {endingEarly ? (
+          {alreadyEnding ? (
             <p class="mt-4 text-sm text-neutral-600 dark:text-neutral-400">
               Already set to end. Nothing more to do.
             </p>
@@ -43,8 +48,13 @@ const live = subscription?.status === 'ACTIVE' || subscription?.status === 'PAST
                 type="submit"
                 class="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
               >
-                Cancel at period end
+                {gracefulCancel ? 'Cancel at period end' : 'Cancel now'}
               </button>
+              <p class="mt-2 text-xs text-neutral-500">
+                {gracefulCancel
+                  ? 'You keep access until the date above.'
+                  : 'This subscription is not ACTIVE, so cancelling ends access immediately with no refund for the remainder.'}
+              </p>
             </form>
           )}
         </>
@@ -65,7 +75,7 @@ const live = subscription?.status === 'ACTIVE' || subscription?.status === 'PAST
     <h2 class="text-sm font-medium uppercase tracking-wider text-neutral-500">Credits</h2>
     <p class="mt-3 text-lg tabular-nums">{entitlements?.creditBalance ?? 0}</p>
     <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-      Spent from your server with <code class="font-mono text-xs">rekey.credits.consume()</code>.
+      Spent from your server with <code class="font-mono text-xs">rekey().credits.consume()</code>.
       See src/pages/api/use-credit.ts.
     </p>
   </section>

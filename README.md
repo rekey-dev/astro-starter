@@ -34,7 +34,8 @@ Fill in `.env` from **Panel → your Application → Developer → API keys**:
 | `REKEY_URL` | `https://api.rekey.dev`, or your own API if you self-host. |
 | `PUBLIC_REKEY_PUBLIC_KEY` | Safe in the browser. Identifies the Application; grants nothing on its own. |
 | `PUBLIC_REKEY_URL` | Same API, the browser-visible copy. |
-| `PUBLIC_APP_URL` | Where this app is reachable. Checkout returns the user here, so in production it must be the real origin. |
+| `PUBLIC_APP_URL` | Where this app is reachable. Checkout returns the user here, **and it is also what tells Astro which origin to trust for form posts** — see Deploying. Needed at build time. |
+| `REKEY_COOKIE_SECURE` | Optional, and only for serving over plain HTTP on a non-localhost hostname. Otherwise the browser refuses the session cookie and sign-in silently never sticks. |
 
 ```bash
 npm run dev
@@ -50,6 +51,7 @@ empty until you create a plan.
 | `src/lib/rekey.ts` | The server client. Holds the secret key. |
 | `src/lib/session.ts` | The whole session adapter: two cookies, a read that refreshes, a write. |
 | `src/middleware.ts` | Reads the session once per request onto `Astro.locals`. |
+| `src/lib/safe-path.ts` | Reduces a `?next=` value to a path on this site. |
 | `src/pages/api/sign-in.ts` | Plain form post. Also sign-up, sign-out, checkout, cancel, use-credit. |
 | `src/components/AuthCard.astro` | The sign-in and sign-up form. Plain markup. |
 | `src/pages/pricing.astro` | Plans read from the API, rendered without an island. |
@@ -65,15 +67,24 @@ adapter. It is about ninety lines and it is all of it:
 - A read that returns the user, and refreshes silently when the access token
   has expired
 - A write, and a clear
+- Sign-out that **revokes** the refresh token as well as clearing the cookies.
+  Clearing alone leaves a 30-day credential valid server-side, which is not
+  what a user means when they click Sign out.
 
 The cookie names and lifetimes match `@rekey.dev/nextjs` deliberately, so an app
 that later moves between the two does not sign everybody out.
 
 Two details in that file are worth reading rather than skimming.
 
-**Only `USER_TOKEN_INVALID` triggers a refresh.** Any other failure is rethrown.
-If a network blip made `getCurrentUser` throw and the code treated that as
-signed out, an API hiccup would present itself to your users as a mass logout.
+**Only `USER_TOKEN_INVALID` triggers a refresh**, and only a verdict about the
+token itself clears the cookies. A timeout must not delete the refresh cookie:
+that is the one credential that can recover the session, so throwing it away
+turns a two-second outage into everybody signing in again.
+
+The middleware catches too, and that matters more than it looks. It runs on
+every route, so an uncaught error takes down the public pages, the sign-in page
+and the sign-out endpoint that could clear a poisoned cookie, leaving a visitor
+with no way back in.
 
 **`Secure` is decided per request**, not from `import.meta.env.PROD`. That is a
 build-time answer to a request-time question, and it fails in the direction that
@@ -102,8 +113,20 @@ you would rather keep a central list.
 from `astro:env/server`, not read through `import.meta.env`. Vite inlines
 `import.meta.env` at build time, so a secret read that way ends up baked into
 `dist/`, and a container built once and run in two environments carries the
-wrong key with nothing in the source to show it. `astro:env` resolves at
-runtime, and a missing variable fails at boot naming the variable.
+wrong key with nothing in the source to show it. `astro:env` resolves it at
+runtime instead, and a missing variable is reported by name.
+
+Two things to know about that, both learned the hard way:
+
+**The built server does not read `.env`.** Vite loads `.env` for `astro dev`
+only. `node ./dist/server/entry.mjs` reads `process.env`, so exporting the
+variables (or a real env file in your process manager, or `--env-file=.env` on
+Node 20.6+) is part of deploying, not an optional nicety.
+
+**It fails on the first request, not at boot.** The server starts and listens
+happily with `REKEY_SECRET` missing; the first page load then returns a 500
+naming the variable. A health check that only tests whether the port is open
+will call that deploy healthy.
 
 ## Forms, and why there is no React here
 
@@ -171,18 +194,60 @@ See `src/pages/api/use-credit.ts`.
 
 ### Cancelling
 
-`cancelSubscription()` cancels at period end by default, so the user keeps what
-they paid for. A provider-backed subscription therefore stays `ACTIVE` with
-`cancelAt` set, and the provider webhook is what ends it. Read `cancelAt`, or the
-`cancelsAtPeriodEnd()` helper, rather than waiting for `status` to flip.
+`cancelSubscription()` asks for cancellation at period end, so the user keeps
+what they paid for. A provider-backed subscription therefore stays `ACTIVE`
+with `cancelAt` set, and the provider webhook is what eventually ends it. Read
+`cancelAt` rather than waiting for `status` to flip.
+
+`cancelAt` and `cancelsAtPeriodEnd()` answer different questions, and swapping
+them is a bug worth avoiding by name because this starter shipped with it:
+
+- **`subscription.cancelAt`** — is this *already* scheduled to end?
+- **`cancelsAtPeriodEnd(subscription)`** — if I cancel *now*, does the user keep
+  the rest of the period, or does access stop on click with no refund?
+
+The second is `status === 'ACTIVE' && currentPeriodEnd !== null`, so it is
+`true` for every healthy subscriber. Use it to word the button and it reads
+correctly; use it to mean "already ending" and the cancel button disappears for
+everyone who could have used it, while a `PAST_DUE` subscriber gets a button
+labelled "cancel at period end" that actually ends their access immediately.
 
 ## Deploying
 
-Built for the Node adapter in standalone mode, so `node ./dist/server/entry.mjs`
-is the whole deployment. Set the same environment variables, point
-`PUBLIC_APP_URL` at the real origin, and add that origin to the Application's
-allowed origins in the panel. Swap the adapter in `astro.config.mjs` for any
-other target.
+### The one step that decides whether any form works
+
+Astro checks the `Origin` header on form posts, and it builds the URL it
+compares against from the socket. Behind a TLS-terminating proxy that is
+`http://your-host`, while the browser sends `Origin: https://your-host`. They do
+not match and **every** sign-in, sign-up, checkout and cancel returns 403.
+
+It works perfectly on localhost, so this only appears once you deploy. Astro
+trusts `X-Forwarded-Proto` once you tell it which host is yours, which is what
+`security.allowedDomains` in `astro.config.mjs` does. It reads `PUBLIC_APP_URL`,
+and **that file runs at build time**, so the variable has to be set for the
+build, not only at runtime:
+
+```bash
+PUBLIC_APP_URL=https://your-host npm run build
+```
+
+Get it wrong and the symptom is a bare 403 with nothing in the logs.
+
+### Running it
+
+Built for the Node adapter in standalone mode, so this is the whole deployment:
+
+```bash
+npm run build
+node --env-file=.env ./dist/server/entry.mjs
+```
+
+The `--env-file` matters: the built server reads `process.env`, not `.env`. On
+a platform that injects environment variables for you, drop the flag.
+
+Point `PUBLIC_APP_URL` at the real origin and add that origin to the
+Application's allowed origins in the panel. Swap the adapter in
+`astro.config.mjs` for any other target.
 
 ## Licence
 

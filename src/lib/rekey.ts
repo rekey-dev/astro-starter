@@ -9,12 +9,15 @@ import { PUBLIC_APP_URL } from 'astro:env/client';
  * island. Astro components run on the server, so importing it from `.astro`
  * frontmatter is fine.
  *
- * The variables come from `astro:env`, declared in astro.config.mjs, which
- * resolves them at runtime instead of inlining them into the build.
+ * Built on first use, not at import: the constructor validates the key, and
+ * doing that at module scope turns a missing variable into an unhandled throw
+ * during module evaluation rather than an error you can catch and report.
  */
-export const rekey = new Rekey({
-  secretKey: REKEY_SECRET,
-  apiUrl: REKEY_URL,
-});
+let client: Rekey | undefined;
+
+export function rekey(): Rekey {
+  client ??= new Rekey({ secretKey: REKEY_SECRET, apiUrl: REKEY_URL });
+  return client;
+}
 
 export const appUrl = PUBLIC_APP_URL;

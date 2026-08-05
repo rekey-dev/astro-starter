@@ -1,5 +1,5 @@
 import type { AstroCookies } from 'astro';
-import type { EndUserDto } from '@rekey.dev/node';
+import type { Rekey } from '@rekey.dev/node';
 import { RekeyError } from '@rekey.dev/node';
 import { REKEY_COOKIE_SECURE } from 'astro:env/server';
 import { rekey } from './rekey';
@@ -15,11 +15,28 @@ import { rekey } from './rekey';
  * app that later moves between the two does not log everybody out.
  */
 
+/**
+ * Codes that mean the refresh token itself is finished. Anything else is a
+ * transport problem and must not cost the user their session.
+ */
+const TOKEN_IS_DEAD = new Set([
+  'REFRESH_TOKEN_EXPIRED',
+  'REFRESH_TOKEN_REUSED',
+  'USER_TOKEN_INVALID',
+]);
+
 export const ACCESS_COOKIE = 'rekey_access';
 export const REFRESH_COOKIE = 'rekey_refresh';
 
+/**
+ * `getCurrentUser` returns more than `EndUserDto` — notably
+ * `activeOrganizationId`, which decides whose credits and entitlements a call
+ * resolves against. Deriving the type from the call keeps that.
+ */
+export type SessionUser = Awaited<ReturnType<Rekey['auth']['getCurrentUser']>>;
+
 export interface Session {
-  user: EndUserDto;
+  user: SessionUser;
   accessToken: string;
 }
 
@@ -47,8 +64,10 @@ function secureFor(request: Request): boolean {
   const proto = (request.headers.get('x-forwarded-proto') ?? '').split(',')[0]?.trim().toLowerCase();
   if (proto === 'https') return true;
 
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? '';
-  return !isLoopback(host);
+  // Deliberately not `x-forwarded-host`: a client can send that, and letting it
+  // choose would let someone ask for a cookie without `Secure`. `Host` is set
+  // by the connection.
+  return !isLoopback(request.headers.get('host') ?? '');
 }
 
 export function setSession(
@@ -77,7 +96,7 @@ export async function getSession(cookies: AstroCookies, request: Request): Promi
   const access = cookies.get(ACCESS_COOKIE)?.value;
   if (access) {
     try {
-      return { user: await rekey.auth.getCurrentUser(access), accessToken: access };
+      return { user: await rekey().auth.getCurrentUser(access), accessToken: access };
     } catch (err) {
       if (!(err instanceof RekeyError) || err.code !== 'USER_TOKEN_INVALID') throw err;
     }
@@ -87,11 +106,17 @@ export async function getSession(cookies: AstroCookies, request: Request): Promi
   if (!refresh) return null;
 
   try {
-    const fresh = await rekey.auth.refresh(refresh);
+    const fresh = await rekey().auth.refresh(refresh);
     setSession(cookies, request, fresh);
-    return { user: await rekey.auth.getCurrentUser(fresh.accessToken), accessToken: fresh.accessToken };
-  } catch {
-    clearSession(cookies);
+    return { user: await rekey().auth.getCurrentUser(fresh.accessToken), accessToken: fresh.accessToken };
+  } catch (err) {
+    // Only clear on a verdict about the token itself. A timeout or a network
+    // blip must not delete the refresh cookie: that is the one credential that
+    // can recover the session, and deleting it turns a two-second outage into
+    // everybody signing in again. Leave it and let the next request retry.
+    if (err instanceof RekeyError && TOKEN_IS_DEAD.has(err.code)) {
+      clearSession(cookies);
+    }
     return null;
   }
 }
