@@ -1,8 +1,7 @@
 import type { APIRoute } from 'astro';
 import { RekeyError } from '@rekey.dev/node';
-import { rekey } from '../../lib/rekey';
-import { setSession } from '../../lib/session';
-import { safePath } from '../../lib/safe-path';
+import { setSession, safePath } from '@rekey.dev/astro';
+import { rekey, rekeyConfig } from '../../lib/rekey';
 
 /**
  * `<SignIn actionUrl="/api/sign-in">` renders a plain form that posts here, so
@@ -23,7 +22,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
       return redirect('/sign-in?mfa=1');
     }
 
-    setSession(cookies, request, outcome);
+    setSession(cookies, request, outcome, rekeyConfig);
     return redirect(safePath(next, '/dashboard'));
   } catch (err) {
     // Show the API's own message. It already distinguishes a wrong password

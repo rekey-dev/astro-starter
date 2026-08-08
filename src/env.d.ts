@@ -1,6 +1,6 @@
 /// <reference types="astro/client" />
 
-import type { Session } from './lib/session';
+import type { Session } from '@rekey.dev/astro';
 
 declare global {
   namespace App {
