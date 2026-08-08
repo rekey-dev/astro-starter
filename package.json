@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@astrojs/node": "^11.0.3",
-    "@rekey.dev/node": "^2.0.0-rc.5",
+    "@rekey.dev/node": "^2.0.0-rc.6",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.1.6",
     "tailwindcss": "^4.3.3"
