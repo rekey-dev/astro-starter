@@ -20,4 +20,14 @@ export function rekey(): Rekey {
   return client;
 }
 
+/**
+ * Config for `@rekey.dev/astro`.
+ *
+ * The package defaults to reading `process.env`, which is right for most Astro
+ * apps. This one takes secrets through `astro:env` instead — `import.meta.env`
+ * is inlined into `dist/` by Vite, which would ship the secret key to anyone
+ * who reads the bundle — so it passes them in explicitly.
+ */
+export const rekeyConfig = { secretKey: REKEY_SECRET, apiUrl: REKEY_URL };
+
 export const appUrl = PUBLIC_APP_URL;
