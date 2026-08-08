@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { isCancelScheduled } from '@rekey.dev/node';
 import { rekey } from '../lib/rekey';
 
 /**
@@ -17,10 +18,10 @@ const [subscription, entitlements] = await Promise.all([
 ]);
 
 // Two different questions:
-//   cancelAt           -> is this ALREADY scheduled to end?
-//   cancelsAtPeriodEnd -> if I cancel NOW, do they keep the rest of the period,
+//   isCancelScheduled -> is this ALREADY scheduled to end?
+//   cancelEffect       -> if I cancel NOW, do they keep the rest of the period,
 //                         or does access stop on click with no refund?
-const alreadyEnding = Boolean(subscription?.cancelAt);
+const alreadyEnding = subscription ? isCancelScheduled(subscription) : false;
 const features = Object.entries(entitlements?.features ?? {});
 const paid = Astro.url.searchParams.get('checkout') === 'done';
 ---
