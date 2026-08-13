@@ -31,10 +31,10 @@ Fill in `.env` from **Panel → your Application → Developer → API keys**:
 | Variable | What it is |
 | --- | --- |
 | `REKEY_SECRET` | Server-only. Full API access for this Application. Never commit it. |
-| `REKEY_URL` | `https://api.rekey.dev`, or your own API if you self-host. |
+| `REKEY_URL` | Which Rekey deployment your key belongs to. Required, no default: `https://api.rekey.dev` for Cloud, your own public origin if you self-host, `http://localhost:3030` for a local one. This is where `REKEY_SECRET` is sent. |
 | `PUBLIC_REKEY_PUBLIC_KEY` | Safe in the browser. Identifies the Application; grants nothing on its own. |
-| `PUBLIC_REKEY_URL` | Same API, the browser-visible copy. |
-| `PUBLIC_APP_URL` | Where this app is reachable. Checkout returns the user here, **and it is also what tells Astro which origin to trust for form posts** — see Deploying. Needed at build time. |
+| `PUBLIC_REKEY_URL` | The same deployment, browser-visible. Required, no default. |
+| `PUBLIC_APP_URL` | Where this app is reachable. Required, no default, and needed at build time. Checkout returns the buyer here, **and it is also what tells Astro which origin to trust for form posts** — see Deploying. It used to default to `http://localhost:4321`, which meant a deployment missing it took payments and returned buyers to localhost. |
 | `REKEY_COOKIE_SECURE` | Optional, and only for serving over plain HTTP on a non-localhost hostname. Otherwise the browser refuses the session cookie and sign-in silently never sticks. |
 
 ```bash
