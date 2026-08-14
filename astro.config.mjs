@@ -45,26 +45,33 @@ export default defineConfig({
   env: {
     schema: {
       REKEY_SECRET: envField.string({ context: 'server', access: 'secret' }),
-      REKEY_URL: envField.string({
-        context: 'server',
-        access: 'secret',
-        optional: true,
-        default: 'https://api.rekey.dev',
-      }),
+      // No defaults on any of the three URLs below, deliberately. Each one
+      // used to have one, and each default was a way for a misconfigured
+      // deployment to keep working while doing the wrong thing silently.
+      //
+      // `REKEY_URL` defaulted to `https://api.rekey.dev`. It is passed
+      // straight into `new Rekey({ secretKey, apiUrl })` in `lib/rekey.ts`, so
+      // a self-hosted deployment that forgot the variable did not fail: it
+      // sent `REKEY_SECRET` in an Authorization header to a host its operator
+      // never chose, and surfaced as an unexplained 401 long after the secret
+      // had left. `@rekey.dev/astro` removed its own copy of this default for
+      // that reason; passing an explicit value from here put it straight back,
+      // so the SDK's fix did not protect this kit.
+      //
+      // `PUBLIC_APP_URL` defaulted to `http://localhost:4321`, which is worse
+      // than failing: checkout built its return URLs from it, so a deployment
+      // missing the variable took the buyer's money and returned them to
+      // localhost. It is also what `security.allowedDomains` above reads, so
+      // the same omission silently rejects every form post in production.
+      //
+      // Missing now means a build that stops and names the variable. That is
+      // the loudest of the available outcomes and the only one that cannot be
+      // shipped by accident.
+      REKEY_URL: envField.string({ context: 'server', access: 'secret' }),
       REKEY_COOKIE_SECURE: envField.string({ context: 'server', access: 'secret', optional: true }),
       PUBLIC_REKEY_PUBLIC_KEY: envField.string({ context: 'client', access: 'public' }),
-      PUBLIC_REKEY_URL: envField.string({
-        context: 'client',
-        access: 'public',
-        optional: true,
-        default: 'https://api.rekey.dev',
-      }),
-      PUBLIC_APP_URL: envField.string({
-        context: 'client',
-        access: 'public',
-        optional: true,
-        default: 'http://localhost:4321',
-      }),
+      PUBLIC_REKEY_URL: envField.string({ context: 'client', access: 'public' }),
+      PUBLIC_APP_URL: envField.string({ context: 'client', access: 'public' }),
     },
   },
 

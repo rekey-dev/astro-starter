@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { RekeyError } from '@rekey.dev/node';
 import { rekey, appUrl } from '../../lib/rekey';
+import { explainToBuyer } from '../../lib/rekey-error';
 
 /**
  * The pricing form posts a plan slug here; this turns it into a hosted checkout
@@ -24,7 +24,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     });
     return redirect(url);
   } catch (err) {
-    const message = err instanceof RekeyError ? err.message : 'Could not start checkout.';
+    const message = explainToBuyer(err, 'Could not start checkout.');
     return redirect(`/pricing?error=${encodeURIComponent(message)}`);
   }
 };
